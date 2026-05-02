@@ -277,6 +277,7 @@ const CartProductScreen = () => {
   const [isClientRegistered, setIsClientRegistered] = useState(false);
   const [clientFetchLoading, setClientFetchLoading] = useState(true);
   const [registeredClient, setRegisteredClient] = useState(null);
+  const [businessDay, setBusinessDay] = useState(new Date().toISOString());
 
   // Logic to allow editing name only for new clients (same as CartServiceScreen)
   const canEditName = !isClientRegistered;
@@ -307,17 +308,29 @@ const CartProductScreen = () => {
   );
 
   useEffect(() => {
-    const loadClients = async () => {
+    const fetchBusinessDay = async () => {
       try {
-        const clients = await fetchClients();
-        setAllClients(clients);
-      } catch (error) {
-        Alert.alert('Error', 'Failed to load client data for search.');
-      } finally {
-        setClientFetchLoading(false);
+        const token = await getAuthToken();
+        if (token) {
+          const response = await axios.get(`${BASE_URL}/settings/business-day`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (response.data && response.data.businessDay) {
+            setBusinessDay(response.data.businessDay);
+            await AsyncStorage.setItem('businessDay', response.data.businessDay);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching business day:', err);
+        const stored = await AsyncStorage.getItem('businessDay');
+        if (stored) {
+          setBusinessDay(stored);
+        }
       }
     };
+
     loadClients();
+    fetchBusinessDay();
   }, []);
 
   useEffect(() => {
@@ -496,7 +509,7 @@ const CartProductScreen = () => {
           discount: discountAmount,
          // specialist: beautician, // Direct, not nested
           notes: notes, // Direct, not nested
-          date: new Date().toISOString(),
+          date: new Date(businessDay).toISOString(),
           billNumber: billNumber,
           clientName: createdClient?.name || clientName.trim(),
           phoneNumber: createdClient?.phoneNumber || phoneNumber.trim(),

@@ -430,19 +430,6 @@ const loadSales = useCallback(
     setPage(1);
   };
 
-  const onDateChange = (event, date) => {
-    if (Platform.OS === 'android') {
-      setShowDatePicker(false);
-    }
-    if (date) {
-      setSelectedFilterDate(date);
-      setPage(1);
-    }
-  };
-
-  const handleOpenDatePicker = () => {
-    setShowDatePicker(true);
-  };
 
   const handleClearDateFilter = () => {
     setFromDate(null);
@@ -478,7 +465,8 @@ const loadSales = useCallback(
       );
     } catch (error) {
       console.error('[SalesScreen] Error ending day:', error);
-      Alert.alert('Error', 'Failed to end day. Please try again.');
+      const errorMsg = error.response?.data?.message || error.message || 'Please try again.';
+      Alert.alert('Error', `Failed to end day: ${errorMsg}`);
     }
   }, [businessDay, authenticatedUser?.token]);
 
