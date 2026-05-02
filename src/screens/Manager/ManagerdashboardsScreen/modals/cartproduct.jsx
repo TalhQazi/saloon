@@ -553,6 +553,7 @@ const CartProductScreen = () => {
         phoneNumber: createdClient?.phoneNumber || phoneNumber.trim(),
         billNumber: billNumber,
         billType: 'product_sale',
+        businessDay: businessDay,
       });
 
       setCheckoutModalVisible(false);
@@ -601,6 +602,7 @@ const CartProductScreen = () => {
         clientName: clientName.trim(),
         phoneNumber: phoneNumber.trim(),
         billNumber: `BILL-${Date.now()}`,
+        businessDay: businessDay,
       });
       setCheckoutModalVisible(false);
       setPrintBillModalVisible(true);

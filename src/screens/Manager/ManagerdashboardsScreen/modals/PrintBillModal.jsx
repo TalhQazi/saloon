@@ -31,7 +31,6 @@ const PrintBillModal = ({ isVisible, onClose, billData }) => {
   // Use useNavigation hook here
   const navigation = useNavigation(); // <-- Yeh line add karein
 
-  const [currentDateTime, setCurrentDateTime] = useState(new Date());
   const [gstConfig, setGstConfig] = useState(null);
   const [calculatedGST, setCalculatedGST] = useState(0);
   const [calculatedTotal, setCalculatedTotal] = useState(0);
@@ -44,7 +43,9 @@ const PrintBillModal = ({ isVisible, onClose, billData }) => {
   const notes = billData?.notes || '-';
   const beautician = billData?.beautician || '-';
   const discount = billData?.discount || 0;
-  const billDate = billData?.date || billData?.createdAt || new Date().toISOString();
+  // Use the business day date passed from the cart screen, not the system clock
+  const billDate = billData?.businessDay || billData?.date || billData?.createdAt || new Date().toISOString();
+  const billDateTime = moment(billDate);
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -57,11 +58,6 @@ const PrintBillModal = ({ isVisible, onClose, billData }) => {
       }
     };
     fetchConfig();
-
-    const interval = setInterval(() => {
-      setCurrentDateTime(new Date());
-    }, 1000);
-    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -169,9 +165,9 @@ const PrintBillModal = ({ isVisible, onClose, billData }) => {
               <img src="https://instagram.flhe2-3.fna.fbcdn.net/v/t51.2885-19/457261200_875269620784761_8509433327543033633_n.jpg?stp=dst-jpg_s320x320_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4xMDgwLmMyIn0&_nc_ht=instagram.flhe2-3.fna.fbcdn.net&_nc_cat=109&_nc_oc=Q6cZ2QGzQK34xa9ubsisttntrZ1Z8cV9u4LPNPQK0CRuI-YOMgKDEnCL64FPM6RDHrN8ZuOfqEHOnVjryJZ8gm4-g078&_nc_ohc=DkUpUAbukNIQ7kNvwH4tWIp&_nc_gid=dnVoQvOMkHCqHpVQ1aCYBA&edm=AOQ1c0wBAAAA&ccb=7-5&oh=00_AfqYH9rR1B5XvSgM76usUY7awAMxXL7l4ssFdAfYrqsRbA&oe=6976A25F&_nc_sid=8b3546" alt="Sarte Saloon Logo" style="display:block; margin:0 auto 10px auto; width:150px; height:auto;" />
               <p class="address">6-B2 Punjab Society, Wapda Town</p>
               <p class="contact">Contact: 0300-1042300</p>
-              <p>Date: ${moment(currentDateTime).format(
+              <p>Date: ${billDateTime.format(
         'MMMM DD, YYYY',
-      )} | Time: ${moment(currentDateTime).format('hh:mm A')}</p>
+      )} | Time: ${moment().format('hh:mm A')}</p>
             </div>
             <div class="section">
               <h2 class="section-title">Client Details</h2>
@@ -415,13 +411,13 @@ const PrintBillModal = ({ isVisible, onClose, billData }) => {
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Date:</Text>
               <Text style={styles.detailValue}>
-                {moment(currentDateTime).format('MMMM DD, YYYY')}
+                {billDateTime.format('MMMM DD, YYYY')}
               </Text>
             </View>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Start Time:</Text>
               <Text style={styles.detailValue}>
-                {moment(currentDateTime).format('hh:mm A')}
+                {moment().format('hh:mm A')}
               </Text>
             </View>
 
