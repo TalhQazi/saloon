@@ -196,16 +196,33 @@ const SalesScreen = ({ navigation }) => {
         setProfileImageSource(userProfileImagePlaceholder);
       }
 
-      // Load business day from storage
+      // Load business day from database
       try {
-        const storedBusinessDay = await AsyncStorage.getItem('businessDay');
-        if (storedBusinessDay) {
-          setBusinessDay(moment(storedBusinessDay).toDate());
+        const token = adminData?.token;
+        if (token) {
+          const response = await axios.get(`${BASE_URL}/settings/business-day`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          if (response.data && response.data.businessDay) {
+            const dbDate = moment(response.data.businessDay).toDate();
+            setBusinessDay(dbDate);
+            await AsyncStorage.setItem('businessDay', dbDate.toISOString());
+          } else {
+            const today = new Date();
+            setBusinessDay(today);
+            await AsyncStorage.setItem('businessDay', today.toISOString());
+          }
         } else {
-          // Initialize with today's date
-          const today = new Date();
-          await AsyncStorage.setItem('businessDay', today.toISOString());
-          setBusinessDay(today);
+          const storedBusinessDay = await AsyncStorage.getItem('businessDay');
+          if (storedBusinessDay) {
+            setBusinessDay(moment(storedBusinessDay).toDate());
+          } else {
+            const today = new Date();
+            await AsyncStorage.setItem('businessDay', today.toISOString());
+            setBusinessDay(today);
+          }
         }
       } catch (error) {
         console.error('[SalesScreen] Error loading business day:', error);
@@ -431,6 +448,17 @@ const SalesScreen = ({ navigation }) => {
       const currentBusinessDay = businessDay || new Date();
       const nextBusinessDay = moment(currentBusinessDay).add(1, 'day').toDate();
 
+      const token = authenticatedAdmin?.token;
+      if (token) {
+        await axios.post(`${BASE_URL}/settings/business-day`, {
+          nextBusinessDay: nextBusinessDay.toISOString(),
+        }, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+      }
+
       // Save to AsyncStorage
       await AsyncStorage.setItem('businessDay', nextBusinessDay.toISOString());
       setBusinessDay(nextBusinessDay);
@@ -444,7 +472,7 @@ const SalesScreen = ({ navigation }) => {
       console.error('[SalesScreen] Error ending day:', error);
       Alert.alert('Error', 'Failed to end day. Please try again.');
     }
-  }, [businessDay]);
+  }, [businessDay, authenticatedAdmin?.token]);
 
   const handleDownloadPDF = useCallback(async () => {
     console.log('[SalesScreen] PDF Download - allSalesRows count:', allSalesRows.length);

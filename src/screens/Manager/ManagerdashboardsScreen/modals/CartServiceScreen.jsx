@@ -304,6 +304,7 @@ const CartServiceScreen = () => {
   const [isClientRegistered, setIsClientRegistered] = useState(false);
   const [clientFetchLoading, setClientFetchLoading] = useState(true);
   const [registeredClient, setRegisteredClient] = useState(null);
+  const [businessDay, setBusinessDay] = useState(new Date().toISOString());
 
   // Logic to allow editing name only for new clients
   const canEditName = !isClientRegistered;
@@ -344,7 +345,30 @@ const CartServiceScreen = () => {
         setClientFetchLoading(false);
       }
     };
+
+    const fetchBusinessDay = async () => {
+      try {
+        const token = await getAuthToken();
+        if (token) {
+          const response = await axios.get(`${BASE_URL}/settings/business-day`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (response.data && response.data.businessDay) {
+            setBusinessDay(response.data.businessDay);
+            await AsyncStorage.setItem('businessDay', response.data.businessDay);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching business day:', err);
+        const stored = await AsyncStorage.getItem('businessDay');
+        if (stored) {
+          setBusinessDay(stored);
+        }
+      }
+    };
+
     loadClients();
+    fetchBusinessDay();
   }, []);
 
   useEffect(() => {
@@ -498,7 +522,7 @@ const CartServiceScreen = () => {
           discount: discountAmount,
           specialist: beautician, // Direct, not nested
           notes: notes, // Direct, not nested
-          date: new Date().toISOString(),
+          date: new Date(businessDay).toISOString(),
           billNumber: billNumber,
           clientName: createdClient?.name || clientName.trim(),
           phoneNumber: createdClient?.phoneNumber || phoneNumber.trim(),
