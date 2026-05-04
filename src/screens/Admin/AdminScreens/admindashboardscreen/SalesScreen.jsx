@@ -158,8 +158,11 @@ const SalesScreen = ({ navigation }) => {
   const [isBackgroundLoading, setIsBackgroundLoading] = useState(false);
 
   const [searchText, setSearchText] = useState('');
-  const [fromDate, setFromDate] = useState(new Date());
-  const [toDate, setToDate] = useState(new Date());
+  // Date filter defaults to the current Business Day once it's loaded
+  // (initialized as null so we don't briefly filter by the device's
+  // real date before the business day has been fetched).
+  const [fromDate, setFromDate] = useState(null);
+  const [toDate, setToDate] = useState(null);
   const [showFromDatePicker, setShowFromDatePicker] = useState(false);
   const [showToDatePicker, setShowToDatePicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -196,7 +199,17 @@ const SalesScreen = ({ navigation }) => {
         setProfileImageSource(userProfileImagePlaceholder);
       }
 
-      // Load business day from database
+      // Load business day from database, then align the date filter
+      // to it so the Sales table shows bills for the active business day.
+      const applyBusinessDay = (date) => {
+        setBusinessDay(date);
+        // Only apply business day to filters on initial load — we don't
+        // want to clobber a date range the user may have manually picked
+        // while the screen was already open.
+        setFromDate(prev => (prev ? prev : date));
+        setToDate(prev => (prev ? prev : date));
+      };
+
       try {
         const token = adminData?.token;
         if (token) {
@@ -207,27 +220,27 @@ const SalesScreen = ({ navigation }) => {
           });
           if (response.data && response.data.businessDay) {
             const dbDate = moment(response.data.businessDay).toDate();
-            setBusinessDay(dbDate);
+            applyBusinessDay(dbDate);
             await AsyncStorage.setItem('businessDay', dbDate.toISOString());
           } else {
             const today = new Date();
-            setBusinessDay(today);
+            applyBusinessDay(today);
             await AsyncStorage.setItem('businessDay', today.toISOString());
           }
         } else {
           const storedBusinessDay = await AsyncStorage.getItem('businessDay');
           if (storedBusinessDay) {
-            setBusinessDay(moment(storedBusinessDay).toDate());
+            applyBusinessDay(moment(storedBusinessDay).toDate());
           } else {
             const today = new Date();
             await AsyncStorage.setItem('businessDay', today.toISOString());
-            setBusinessDay(today);
+            applyBusinessDay(today);
           }
         }
       } catch (error) {
         console.error('[SalesScreen] Error loading business day:', error);
         const today = new Date();
-        setBusinessDay(today);
+        applyBusinessDay(today);
       }
     };
 
@@ -449,6 +462,11 @@ const SalesScreen = ({ navigation }) => {
       // Save to AsyncStorage
       await AsyncStorage.setItem('businessDay', nextBusinessDay.toISOString());
       setBusinessDay(nextBusinessDay);
+      // Realign the date filter to the new business day so the Sales
+      // table immediately shows bills for the new active day.
+      setFromDate(nextBusinessDay);
+      setToDate(nextBusinessDay);
+      setPage(1);
 
       Alert.alert(
         'Day Ended',

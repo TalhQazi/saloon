@@ -520,11 +520,36 @@ const CartProductScreen = () => {
 
       console.log('📦 UPDATED Product Bill payload prepared:', historyPayload);
 
+      // The backend is the source of truth for the visit's business
+      // day. We capture the saved date here so the PrintBillModal
+      // displays the exact same date that was stored in the database.
+      let savedBusinessDay = businessDay;
+
       // ✅ Save to history once (only if client is not temporary)
       if (createdClient?._id && !createdClient.isTemporary) {
         try {
-          await addBillToClientHistory(createdClient._id, historyPayload);
+          const response = await addBillToClientHistory(
+            createdClient._id,
+            historyPayload,
+          );
           console.log('✅ Product bill saved to client history');
+          const beBusinessDay =
+            response?.businessDay || response?.visit?.date;
+          if (beBusinessDay) {
+            savedBusinessDay = beBusinessDay;
+            setBusinessDay(beBusinessDay);
+            try {
+              await AsyncStorage.setItem(
+                'businessDay',
+                new Date(beBusinessDay).toISOString(),
+              );
+            } catch (storageErr) {
+              console.warn(
+                '[CartProduct] Failed to persist business day:',
+                storageErr,
+              );
+            }
+          }
         } catch (historyError) {
           console.error('❌ Product bill history save failed:', historyError);
           console.log('Skipping history save due to error...');
@@ -553,7 +578,7 @@ const CartProductScreen = () => {
         phoneNumber: createdClient?.phoneNumber || phoneNumber.trim(),
         billNumber: billNumber,
         billType: 'product_sale',
-        businessDay: businessDay,
+        businessDay: savedBusinessDay,
       });
 
       setCheckoutModalVisible(false);

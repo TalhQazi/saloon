@@ -538,6 +538,12 @@ const CartServiceScreen = () => {
       console.log('visitData.specialist:', historyPayload.visitData.specialist);
       console.log('visitData.notes:', historyPayload.visitData.notes);
 
+      // The backend is the source of truth for the visit's business
+      // day. We capture the saved date here so the PrintBillModal
+      // displays the exact same date that was stored in the database
+      // (and therefore the same date the Sales screen will filter by).
+      let savedBusinessDay = businessDay;
+
       // Only save to history if client is not temporary
       if (createdClient?._id && !createdClient.isTemporary) {
         try {
@@ -556,6 +562,24 @@ const CartServiceScreen = () => {
           console.log('=== BACKEND RESPONSE ===');
           console.log('Response:', JSON.stringify(response, null, 2));
           console.log('✅ Bill saved to client history');
+
+          const beBusinessDay =
+            response?.businessDay || response?.visit?.date;
+          if (beBusinessDay) {
+            savedBusinessDay = beBusinessDay;
+            setBusinessDay(beBusinessDay);
+            try {
+              await AsyncStorage.setItem(
+                'businessDay',
+                new Date(beBusinessDay).toISOString(),
+              );
+            } catch (storageErr) {
+              console.warn(
+                '[CartService] Failed to persist business day:',
+                storageErr,
+              );
+            }
+          }
         } catch (historyError) {
           console.error('❌ Bill history save failed:', historyError);
           console.error(
@@ -580,7 +604,7 @@ const CartServiceScreen = () => {
         clientName: createdClient?.name || clientName.trim(),
         phoneNumber: createdClient?.phoneNumber || phoneNumber.trim(),
         billNumber: billNumber,
-        businessDay: businessDay,
+        businessDay: savedBusinessDay,
       });
 
       setCheckoutModalVisible(false);
