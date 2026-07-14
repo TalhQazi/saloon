@@ -20,8 +20,10 @@ const NotificationBell = ({ size = width * 0.037, containerStyle }) => {
       }}
       style={[styles.button, containerStyle]}
     >
-      <MaterialCommunityIcons name="bell-outline" size={size} color="#fff" />
-      {!!unreadCount && unreadCount > 0 && <View style={styles.dot} />}
+      <View style={styles.iconWrapper}>
+        <MaterialCommunityIcons name="bell-outline" size={size} color="#fff" />
+        {!!unreadCount && unreadCount > 0 && <View style={styles.dot} />}
+      </View>
     </TouchableOpacity>
   );
 };
@@ -34,15 +36,19 @@ const styles = StyleSheet.create({
     width: width * 0.058,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  iconWrapper: {
     position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   dot: {
     position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    top: -2,
+    right: -2,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: '#FF3B30',
   },
 });

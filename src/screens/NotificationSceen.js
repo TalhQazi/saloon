@@ -21,6 +21,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Toast from 'react-native-toast-message';
+import { useNotifications } from '../context/NotificationContext';
 
 const { width, height } = Dimensions.get('window');
 
@@ -226,6 +227,7 @@ const handleNotificationApiCall = async (
 
 const NotificationsScreen = () => {
   const navigation = useNavigation();
+  const { fetchNotificationCount } = useNotifications();
 
   // Refs
   const latestNotificationIdRef = useRef(null);
@@ -449,6 +451,9 @@ const NotificationsScreen = () => {
       if (!token) throw new Error('Authentication required.');
 
       await handleNotificationApiCall(`${id}/read`, 'PUT', token);
+      if (typeof fetchNotificationCount === 'function') {
+        fetchNotificationCount();
+      }
 
       setNotificationsData(prevData =>
         prevData.map(notification =>
@@ -466,7 +471,7 @@ const NotificationsScreen = () => {
     } finally {
       setIsActionLoading(false);
     }
-  }, []);
+  }, [fetchNotificationCount]);
 
   const handleMarkAllAsRead = useCallback(async () => {
     setIsActionLoading(true);
@@ -475,6 +480,9 @@ const NotificationsScreen = () => {
       if (!token) throw new Error('Authentication required.');
 
       await handleNotificationApiCall('mark-all-read', 'PUT', token);
+      if (typeof fetchNotificationCount === 'function') {
+        fetchNotificationCount();
+      }
 
       setNotificationsData(prevData =>
         prevData.map(notification => ({ ...notification, read: true })),
@@ -491,7 +499,7 @@ const NotificationsScreen = () => {
     } finally {
       setIsActionLoading(false);
     }
-  }, []);
+  }, [fetchNotificationCount]);
 
   const handleDeleteNotification = useCallback(async id => {
     Alert.alert(
@@ -509,6 +517,9 @@ const NotificationsScreen = () => {
               if (!token) throw new Error('Authentication required.');
 
               await handleNotificationApiCall(id, 'DELETE', token);
+              if (typeof fetchNotificationCount === 'function') {
+                fetchNotificationCount();
+              }
 
               setNotificationsData(prevData =>
                 prevData.filter(notification => notification.id !== id),
@@ -526,7 +537,7 @@ const NotificationsScreen = () => {
         },
       ],
     );
-  }, []);
+  }, [fetchNotificationCount]);
 
   const handleRefresh = useCallback(() => {
     initialLoadFailedRef.current = false;

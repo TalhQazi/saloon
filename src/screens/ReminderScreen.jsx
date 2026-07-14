@@ -20,6 +20,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Toast from 'react-native-toast-message';
+import { useNotifications } from '../context/NotificationContext';
 
 const { width, height } = Dimensions.get('window');
 
@@ -177,6 +178,7 @@ const handleNotificationApiCall = async (
 
 const ReminderScreen = () => {
   const navigation = useNavigation();
+  const { fetchNotificationCount } = useNotifications();
 
   // Refs
   const isFetchingRef = useRef(false);
@@ -281,6 +283,9 @@ const ReminderScreen = () => {
       if (!token) throw new Error('Authentication required.');
 
       await handleNotificationApiCall(`${id}/read`, 'PUT', token);
+      if (typeof fetchNotificationCount === 'function') {
+        fetchNotificationCount();
+      }
 
       // Remove from the list immediately upon marking read
       setRemindersData(prevData => prevData.filter(reminder => reminder.id !== id));
@@ -293,7 +298,7 @@ const ReminderScreen = () => {
     } finally {
       setIsActionLoading(false);
     }
-  }, []);
+  }, [fetchNotificationCount]);
 
   const handleDeleteReminder = useCallback(async id => {
     Alert.alert(
@@ -311,6 +316,9 @@ const ReminderScreen = () => {
               if (!token) throw new Error('Authentication required.');
 
               await handleNotificationApiCall(id, 'DELETE', token);
+              if (typeof fetchNotificationCount === 'function') {
+                fetchNotificationCount();
+              }
 
               // Remove from list immediately
               setRemindersData(prevData => prevData.filter(reminder => reminder.id !== id));
@@ -327,7 +335,7 @@ const ReminderScreen = () => {
         },
       ],
     );
-  }, []);
+  }, [fetchNotificationCount]);
 
   const handleRefresh = useCallback(() => {
     fetchReminders(true, false);
