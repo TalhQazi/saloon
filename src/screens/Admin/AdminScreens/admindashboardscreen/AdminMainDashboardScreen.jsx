@@ -18,6 +18,7 @@ import AdvanceSalary from './AdvanceSalary';
 import GSTConfigurationScreen from './GSTConfigurationScreen';
 import NotificationsScreen from '../../../NotificationSceen';
 import PrinterSettingsScreen from '../../../Manager/ManagerdashboardsScreen/PrinterSettingsScreen';
+import ReminderScreen from '../../../ReminderScreen';
 import SalesScreen from './SalesScreen';
 
 const AdminMainDashboardScreen = ({ navigation, route }) => {
@@ -182,6 +183,8 @@ const AdminMainDashboardScreen = ({ navigation, route }) => {
         return <GSTConfigurationScreen />;
       case 'NotificationsScreen':
         return <NotificationsScreen />;
+      case 'Reminder':
+        return <ReminderScreen />;
       case 'PrinterSettings':
         return <PrinterSettingsScreen />;
       default:

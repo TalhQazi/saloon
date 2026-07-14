@@ -15,6 +15,7 @@ import Marketplace from './MarketplaceScreen';
 import AdvanceSalary from './AdvanceSalary';
 import PrinterSettingsScreen from './PrinterSettingsScreen';
 import SalesScreen from './ManagerSalesScreen';
+import ReminderScreen from '../../ReminderScreen';
 
 const ManagerHomeScreen = ({ navigation, route }) => {
   const [activeTab, setActiveTab] = useState('Home');
@@ -163,6 +164,8 @@ const ManagerHomeScreen = ({ navigation, route }) => {
         return <AdvanceSalary />;
       case 'PrinterSettings':
         return <PrinterSettingsScreen />;
+      case 'Reminder':
+        return <ReminderScreen />;
       case 'Sales':
         return <SalesScreen />;
       default:

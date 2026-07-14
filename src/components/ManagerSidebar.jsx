@@ -23,6 +23,7 @@ const sidebarItems = [
   { name: 'Expense', icon: 'cash-multiple' },
   { name: 'AdvanceSalary', icon: 'cash-plus' },
   { name: 'AdvanceBooking', icon: 'calendar-check' },
+  { name: 'Reminder', icon: 'bell-ring' },
   { name: 'Clients', icon: 'account-group' },
   { name: 'Sales', icon: 'cart' },
   { name: 'PrinterSettings', icon: 'printer' },
