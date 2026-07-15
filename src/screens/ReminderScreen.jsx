@@ -186,7 +186,7 @@ const ReminderScreen = () => {
   // State
   const [remindersData, setRemindersData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isActionLoading, setIsActionLoading] = useState(false);
+  const [loadingActionId, setLoadingActionId] = useState(null);
   const [error, setError] = useState(null);
 
   /**
@@ -220,8 +220,8 @@ const ReminderScreen = () => {
           return;
         }
 
-        // Query only unread advance booking reminders
-        const data = await handleNotificationApiCall('?type=advance_booking_reminder&isRead=false', 'GET', token);
+        // Query all advance booking reminders
+        const data = await handleNotificationApiCall('?type=advance_booking_reminder', 'GET', token);
 
         if (
           !data.success ||
@@ -251,7 +251,7 @@ const ReminderScreen = () => {
         setError(err.message);
       } finally {
         setIsLoading(false);
-        setIsActionLoading(false);
+        setLoadingActionId(null);
         isFetchingRef.current = false;
       }
     },
@@ -277,7 +277,7 @@ const ReminderScreen = () => {
   // ====================================================================
 
   const handleMarkAsRead = useCallback(async id => {
-    setIsActionLoading(true);
+    setLoadingActionId(id);
     try {
       const token = await getAuthToken();
       if (!token) throw new Error('Authentication required.');
@@ -287,54 +287,41 @@ const ReminderScreen = () => {
         fetchNotificationCount();
       }
 
-      // Remove from the list immediately upon marking read
-      setRemindersData(prevData => prevData.filter(reminder => reminder.id !== id));
-      Toast.show({ type: 'success', text1: 'Reminder marked as read.' });
+      // Update the reminder to mark it as read without removing it
+      setRemindersData(prevData => prevData.map(reminder => 
+        reminder.id === id ? { ...reminder, read: true } : reminder
+      ));
     } catch (error) {
       Alert.alert(
         'Error',
         `Failed to mark reminder as read: ${error.message}`,
       );
     } finally {
-      setIsActionLoading(false);
+      setLoadingActionId(null);
     }
   }, [fetchNotificationCount]);
 
   const handleDeleteReminder = useCallback(async id => {
-    Alert.alert(
-      'Confirm Delete',
-      'Are you sure you want to delete this reminder?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            setIsActionLoading(true);
-            try {
-              const token = await getAuthToken();
-              if (!token) throw new Error('Authentication required.');
+    setLoadingActionId(id);
+    try {
+      const token = await getAuthToken();
+      if (!token) throw new Error('Authentication required.');
 
-              await handleNotificationApiCall(id, 'DELETE', token);
-              if (typeof fetchNotificationCount === 'function') {
-                fetchNotificationCount();
-              }
+      await handleNotificationApiCall(id, 'DELETE', token);
+      if (typeof fetchNotificationCount === 'function') {
+        fetchNotificationCount();
+      }
 
-              // Remove from list immediately
-              setRemindersData(prevData => prevData.filter(reminder => reminder.id !== id));
-              Toast.show({ type: 'success', text1: 'Reminder deleted.' });
-            } catch (error) {
-              Alert.alert(
-                'Error',
-                `Failed to delete reminder: ${error.message}`,
-              );
-            } finally {
-              setIsActionLoading(false);
-            }
-          },
-        },
-      ],
-    );
+      // Remove from list immediately
+      setRemindersData(prevData => prevData.filter(reminder => reminder.id !== id));
+    } catch (error) {
+      Alert.alert(
+        'Error',
+        `Failed to delete reminder: ${error.message}`,
+      );
+    } finally {
+      setLoadingActionId(null);
+    }
   }, [fetchNotificationCount]);
 
   const handleRefresh = useCallback(() => {
@@ -351,7 +338,7 @@ const ReminderScreen = () => {
         style={[
           styles.notificationRow,
           { backgroundColor: index % 2 === 0 ? '#2E2E2E' : '#1F1F1F' },
-          styles.unreadNotification,
+          !item.read && styles.unreadNotification,
         ]}
       >
         <View style={styles.notificationIconContainer}>
@@ -367,7 +354,6 @@ const ReminderScreen = () => {
         <View style={styles.notificationContent}>
           <View style={styles.notificationHeader}>
             <Text style={styles.notificationTitle}>{item.title}</Text>
-            <View style={styles.unreadDot} />
           </View>
           <Text style={styles.notificationMessage} numberOfLines={2}>
             {item.message}
@@ -376,18 +362,20 @@ const ReminderScreen = () => {
         </View>
 
         <View style={styles.notificationActions}>
-          {isActionLoading ? (
+          {!item.read && <View style={styles.unreadDot} />}
+          {loadingActionId === item.id ? (
             <ActivityIndicator size="small" color="#A98C27" />
           ) : (
             <>
               <TouchableOpacity
                 style={styles.actionButton}
-                onPress={() => handleMarkAsRead(item.id)}
+                onPress={() => !item.read && handleMarkAsRead(item.id)}
+                disabled={item.read}
               >
                 <Ionicons
                   name="checkmark-done-outline"
-                  size={width * 0.018}
-                  color="#4CAF50"
+                  size={width * 0.025}
+                  color={item.read ? "#1976D2" : "#4CAF50"}
                 />
               </TouchableOpacity>
               <TouchableOpacity
@@ -396,7 +384,7 @@ const ReminderScreen = () => {
               >
                 <Ionicons
                   name="trash-outline"
-                  size={width * 0.018}
+                  size={width * 0.025}
                   color="#ff5555"
                 />
               </TouchableOpacity>
@@ -416,22 +404,6 @@ const ReminderScreen = () => {
       >
         <View style={styles.notificationsHeaderSection}>
           <Text style={styles.screenTitle}>Booking Reminders</Text>
-          <View style={styles.buttonsGroup}>
-            {/* Refresh Button */}
-            <TouchableOpacity
-              style={styles.refreshButton}
-              onPress={handleRefresh}
-              disabled={isLoading || isActionLoading}
-            >
-              <Ionicons
-                name="refresh"
-                size={width * 0.02}
-                color="#fff"
-                style={{ marginRight: 8 }}
-              />
-              <Text style={styles.refreshButtonText}>Refresh</Text>
-            </TouchableOpacity>
-          </View>
         </View>
 
         <View style={styles.notificationsContainer}>
@@ -511,27 +483,7 @@ const styles = StyleSheet.create({
     paddingBottom: height * 0.03,
     flexWrap: 'wrap',
   },
-  buttonsGroup: {
-    flexDirection: 'row',
-    gap: width * 0.015,
-    alignItems: 'center',
-    flexWrap: 'wrap',
-  },
-  refreshButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#2A2D32',
-    paddingVertical: height * 0.012,
-    paddingHorizontal: width * 0.02,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#4A4A4A',
-  },
-  refreshButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: width * 0.014,
-  },
+
   notificationsContainer: {
     backgroundColor: '#1F1F1F',
     borderRadius: 8,
@@ -581,11 +533,12 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   unreadDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: '#FF3B30',
     marginLeft: width * 0.01,
+    marginRight: width * 0.01,
   },
   notificationMessage: {
     color: '#ccc',
