@@ -376,42 +376,29 @@ const ReminderScreen = () => {
   }, [fetchNotificationCount]);
 
   const handleDeleteReminder = useCallback(async id => {
-    Alert.alert(
-      'Confirm Delete',
-      'Are you sure you want to delete this reminder?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            setLoadingActionId(id);
-            try {
-              const token = await getAuthToken();
-              if (!token) throw new Error('Authentication required.');
+    setLoadingActionId(id);
+    try {
+      const token = await getAuthToken();
+      if (!token) throw new Error('Authentication required.');
 
-              await handleNotificationApiCall(id, 'DELETE', token);
-              if (typeof fetchNotificationCount === 'function') {
-                fetchNotificationCount();
-              }
+      await handleNotificationApiCall(id, 'DELETE', token);
+      if (typeof fetchNotificationCount === 'function') {
+        fetchNotificationCount();
+      }
 
-              // Remove from list immediately
-              setRemindersData(prevData =>
-                prevData.filter(reminder => reminder.id !== id),
-              );
-              Toast.show({ type: 'success', text1: 'Reminder deleted.' });
-            } catch (error) {
-              Alert.alert(
-                'Error',
-                `Failed to delete reminder: ${error.message}`,
-              );
-            } finally {
-              setLoadingActionId(null);
-            }
-          },
-        },
-      ],
-    );
+      // Remove from list immediately
+      setRemindersData(prevData =>
+        prevData.filter(reminder => reminder.id !== id),
+      );
+      Toast.show({ type: 'success', text1: 'Reminder deleted.' });
+    } catch (error) {
+      Alert.alert(
+        'Error',
+        `Failed to delete reminder: ${error.message}`,
+      );
+    } finally {
+      setLoadingActionId(null);
+    }
   }, [fetchNotificationCount]);
 
   const handleRefresh = useCallback(() => {

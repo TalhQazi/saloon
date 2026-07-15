@@ -511,41 +511,28 @@ const NotificationsScreen = () => {
   }, [fetchNotificationCount]);
 
   const handleDeleteNotification = useCallback(async id => {
-    Alert.alert(
-      'Confirm Delete',
-      'Are you sure you want to delete this notification?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            setIsActionLoading(true);
-            try {
-              const token = await getAuthToken();
-              if (!token) throw new Error('Authentication required.');
+    setIsActionLoading(true);
+    try {
+      const token = await getAuthToken();
+      if (!token) throw new Error('Authentication required.');
 
-              await handleNotificationApiCall(id, 'DELETE', token);
-              if (typeof fetchNotificationCount === 'function') {
-                fetchNotificationCount();
-              }
+      await handleNotificationApiCall(id, 'DELETE', token);
+      if (typeof fetchNotificationCount === 'function') {
+        fetchNotificationCount();
+      }
 
-              setNotificationsData(prevData =>
-                prevData.filter(notification => notification.id !== id),
-              );
-              Toast.show({ type: 'success', text1: 'Notification deleted.' });
-            } catch (error) {
-              Alert.alert(
-                'Error',
-                `Failed to delete notification: ${error.message}`,
-              );
-            } finally {
-              setIsActionLoading(false);
-            }
-          },
-        },
-      ],
-    );
+      setNotificationsData(prevData =>
+        prevData.filter(notification => notification.id !== id),
+      );
+      Toast.show({ type: 'success', text1: 'Notification deleted.' });
+    } catch (error) {
+      Alert.alert(
+        'Error',
+        `Failed to delete notification: ${error.message}`,
+      );
+    } finally {
+      setIsActionLoading(false);
+    }
   }, [fetchNotificationCount]);
 
   const handleRefresh = useCallback(() => {
