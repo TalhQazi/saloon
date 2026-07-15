@@ -10,6 +10,9 @@ import {
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigationState } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAuthToken } from '../utils/authUtils';
+import { getAdvanceBookingStats } from '../api/advanceBookingService';
 
 import AppLogo from '../assets/images/logo.png';
 
@@ -47,6 +50,29 @@ const Sidebar = ({ activeTab, onSelect, navigation }) => {
   if (currentRouteName === 'CartDealsScreen') {
     currentActiveTab = 'Deals';
   }
+
+  const [bookingCount, setBookingCount] = useState(0);
+
+  const fetchBookingCount = useCallback(async () => {
+    try {
+      const token = await getAuthToken();
+      if (token) {
+        const stats = await getAdvanceBookingStats(token);
+        if (stats && stats.success && stats.data) {
+          const count = stats.data.pendingBookings ?? 0;
+          setBookingCount(count);
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to fetch booking count for manager sidebar:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchBookingCount();
+    const interval = setInterval(fetchBookingCount, 30000);
+    return () => clearInterval(interval);
+  }, [fetchBookingCount]);
 
   const onSelectRef = useRef(onSelect);
   useEffect(() => {
@@ -126,6 +152,11 @@ const Sidebar = ({ activeTab, onSelect, navigation }) => {
             >
               {item.name}
             </Text>
+            {item.name === 'Reminder' && bookingCount > 0 && (
+              <View style={styles.badgeContainer}>
+                <Text style={styles.badgeText}>{bookingCount}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         ))}
       </View>
@@ -189,6 +220,21 @@ const styles = StyleSheet.create({
   },
   tabTextActive: {
     color: '#fff',
+    fontWeight: 'bold',
+  },
+  badgeContainer: {
+    backgroundColor: '#FF3B30',
+    borderRadius: 10,
+    minWidth: width * 0.025,
+    height: width * 0.025,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    marginLeft: 'auto',
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: width * 0.012,
     fontWeight: 'bold',
   },
 });

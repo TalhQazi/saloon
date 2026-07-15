@@ -57,6 +57,7 @@ const ManagerHomeScreen = ({ navigation, route }) => {
 
   // Check authentication on component mount
   useEffect(() => {
+    AsyncStorage.setItem('activeRole', 'manager').catch(() => {});
     checkAuthentication();
   }, []);
 

@@ -55,6 +55,7 @@ const AdminMainDashboardScreen = ({ navigation, route }) => {
 
   // Check authentication on component mount
   useEffect(() => {
+    AsyncStorage.setItem('activeRole', 'admin').catch(() => {});
     checkAuthentication();
   }, []);
 

@@ -60,8 +60,16 @@ const formatDate = dateString => {
 
 const getAuthToken = async () => {
   try {
+    const activeRole = await AsyncStorage.getItem('activeRole');
     const adminAuth = await AsyncStorage.getItem('adminAuth');
     const managerAuth = await AsyncStorage.getItem('managerAuth');
+
+    if (activeRole === 'manager' && managerAuth) {
+      const managerData = JSON.parse(managerAuth);
+      if (managerData.token) {
+        return managerData.token;
+      }
+    }
 
     if (adminAuth) {
       const adminData = JSON.parse(adminAuth);
@@ -182,23 +190,41 @@ const ReminderScreen = () => {
 
   // Refs
   const isFetchingRef = useRef(false);
+  const initialLoadFailedRef = useRef(false);
 
   // State
+  const [filterType, setFilterType] = useState('all');
   const [remindersData, setRemindersData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
+  const [isActionLoading, setIsActionLoading] = useState(false);
   const [loadingActionId, setLoadingActionId] = useState(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState(null);
 
   /**
    * Fetches reminders from the API.
    */
   const fetchReminders = useCallback(
-    async (isRefresh = false, isFocusEffectCall = false) => {
+    async (pageNumber = 1, isRefresh = false, selectedFilter = filterType) => {
+      console.log('📥 [fetchReminders] Starting fetch...', {
+        pageNumber,
+        isRefresh,
+        selectedFilter,
+        isFetchingInProgress: isFetchingRef.current,
+      });
+
       if (isFetchingRef.current) return;
       isFetchingRef.current = true;
 
-      if (!isRefresh && !isFocusEffectCall) {
+      if (isRefresh) {
+        setPage(1);
+        setHasMore(true);
+      } else if (pageNumber === 1) {
         setIsLoading(true);
+      } else {
+        setIsFetchingMore(true);
       }
 
       setError(null);
@@ -220,17 +246,24 @@ const ReminderScreen = () => {
           return;
         }
 
-        // Query all advance booking reminders
-        const data = await handleNotificationApiCall('?type=advance_booking_reminder', 'GET', token);
+        // Build endpoint query parameters with pagination and filters
+        const limit = 20;
+        let queryParams = `?type=advance_booking_reminder&page=${pageNumber}&limit=${limit}`;
+        if (selectedFilter === 'unread') {
+          queryParams += '&isRead=false';
+        } else if (selectedFilter === 'read') {
+          queryParams += '&isRead=true';
+        }
+
+        // Query advance booking reminders
+        const data = await handleNotificationApiCall(queryParams, 'GET', token);
 
         if (
           !data.success ||
           !data.data ||
           !Array.isArray(data.data.notifications)
         ) {
-          throw new Error(
-            'Unexpected data format from server.',
-          );
+          throw new Error('Unexpected data format from server.');
         }
 
         const mappedData = data.data.notifications.map(item => {
@@ -245,36 +278,58 @@ const ReminderScreen = () => {
           };
         });
 
-        setRemindersData(mappedData);
+        if (isRefresh || pageNumber === 1) {
+          setRemindersData(mappedData);
+        } else {
+          setRemindersData(prev => [...prev, ...mappedData]);
+        }
+
+        const pagination = data.data.pagination;
+        if (pagination) {
+          setHasMore(pagination.hasNext);
+        } else {
+          setHasMore(mappedData.length === limit);
+        }
+        
+        setPage(pageNumber);
+        initialLoadFailedRef.current = false;
       } catch (err) {
         console.error('❌ Failed to fetch reminders:', err);
+        initialLoadFailedRef.current = true;
         setError(err.message);
       } finally {
         setIsLoading(false);
+        setIsFetchingMore(false);
+        setIsActionLoading(false);
         setLoadingActionId(null);
         isFetchingRef.current = false;
       }
     },
-    [navigation],
+    [navigation, filterType],
   );
 
   // Initial fetch on mount
   useEffect(() => {
-    fetchReminders();
-  }, [fetchReminders]);
+    fetchReminders(1, false, filterType);
+  }, []);
 
   // Refetch on screen focus
   useFocusEffect(
     useCallback(() => {
       if (!isFetchingRef.current) {
-        fetchReminders(false, true);
+        fetchReminders(1, true, filterType);
       }
-    }, [fetchReminders]),
+    }, [fetchReminders, filterType]),
   );
 
   // ====================================================================
   // HANDLERS
   // ====================================================================
+
+  const handleFilterSelect = useCallback(type => {
+    setFilterType(type);
+    fetchReminders(1, true, type);
+  }, [fetchReminders]);
 
   const handleMarkAsRead = useCallback(async id => {
     setLoadingActionId(id);
@@ -288,9 +343,12 @@ const ReminderScreen = () => {
       }
 
       // Update the reminder to mark it as read without removing it
-      setRemindersData(prevData => prevData.map(reminder => 
-        reminder.id === id ? { ...reminder, read: true } : reminder
-      ));
+      setRemindersData(prevData =>
+        prevData.map(reminder =>
+          reminder.id === id ? { ...reminder, read: true } : reminder,
+        ),
+      );
+      Toast.show({ type: 'success', text1: 'Reminder marked as read.' });
     } catch (error) {
       Alert.alert(
         'Error',
@@ -301,32 +359,83 @@ const ReminderScreen = () => {
     }
   }, [fetchNotificationCount]);
 
-  const handleDeleteReminder = useCallback(async id => {
-    setLoadingActionId(id);
+  const handleMarkAllAsRead = useCallback(async () => {
+    setIsActionLoading(true);
     try {
       const token = await getAuthToken();
       if (!token) throw new Error('Authentication required.');
 
-      await handleNotificationApiCall(id, 'DELETE', token);
+      await handleNotificationApiCall('mark-all-read?type=advance_booking_reminder', 'PUT', token);
       if (typeof fetchNotificationCount === 'function') {
         fetchNotificationCount();
       }
 
-      // Remove from list immediately
-      setRemindersData(prevData => prevData.filter(reminder => reminder.id !== id));
+      setRemindersData(prevData =>
+        prevData.map(reminder => ({ ...reminder, read: true })),
+      );
+      Toast.show({
+        type: 'success',
+        text1: 'All reminders marked as read.',
+      });
     } catch (error) {
       Alert.alert(
         'Error',
-        `Failed to delete reminder: ${error.message}`,
+        `Failed to mark all reminders as read: ${error.message}`,
       );
     } finally {
-      setLoadingActionId(null);
+      setIsActionLoading(false);
     }
   }, [fetchNotificationCount]);
 
+  const handleDeleteReminder = useCallback(async id => {
+    Alert.alert(
+      'Confirm Delete',
+      'Are you sure you want to delete this reminder?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setLoadingActionId(id);
+            try {
+              const token = await getAuthToken();
+              if (!token) throw new Error('Authentication required.');
+
+              await handleNotificationApiCall(id, 'DELETE', token);
+              if (typeof fetchNotificationCount === 'function') {
+                fetchNotificationCount();
+              }
+
+              // Remove from list immediately
+              setRemindersData(prevData =>
+                prevData.filter(reminder => reminder.id !== id),
+              );
+              Toast.show({ type: 'success', text1: 'Reminder deleted.' });
+            } catch (error) {
+              Alert.alert(
+                'Error',
+                `Failed to delete reminder: ${error.message}`,
+              );
+            } finally {
+              setLoadingActionId(null);
+            }
+          },
+        },
+      ],
+    );
+  }, [fetchNotificationCount]);
+
   const handleRefresh = useCallback(() => {
-    fetchReminders(true, false);
-  }, [fetchReminders]);
+    initialLoadFailedRef.current = false;
+    fetchReminders(1, true, filterType);
+  }, [fetchReminders, filterType]);
+
+  const handleLoadMore = () => {
+    if (!isLoading && !isFetchingMore && hasMore && !isFetchingRef.current) {
+      fetchReminders(page + 1, false, filterType);
+    }
+  };
 
   // ====================================================================
   // RENDER LOGIC
@@ -375,7 +484,7 @@ const ReminderScreen = () => {
                 <Ionicons
                   name="checkmark-done-outline"
                   size={width * 0.025}
-                  color={item.read ? "#1976D2" : "#4CAF50"}
+                  color={item.read ? '#1976D2' : '#4CAF50'}
                 />
               </TouchableOpacity>
               <TouchableOpacity
@@ -395,57 +504,125 @@ const ReminderScreen = () => {
     );
   };
 
+  const renderHeader = () => {
+    return (
+      <View style={styles.notificationsHeaderSection}>
+        <Text style={styles.screenTitle}>Booking Reminders</Text>
+        <View style={styles.buttonsGroup}>
+          {/* Filter Buttons */}
+          {['all', 'unread', 'read'].map(type => (
+            <TouchableOpacity
+              key={type}
+              style={[
+                styles.filterButton,
+                filterType === type && styles.filterButtonActive,
+              ]}
+              onPress={() => handleFilterSelect(type)}
+            >
+              <Text
+                style={[
+                  styles.filterButtonText,
+                  filterType === type && styles.filterButtonTextActive,
+                ]}
+              >
+                {type.charAt(0).toUpperCase() + type.slice(1)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+
+          {/* Mark All Read Button */}
+          <TouchableOpacity
+            style={styles.markAllButton}
+            onPress={handleMarkAllAsRead}
+            disabled={isActionLoading || remindersData.every(n => n.read)}
+          >
+            {isActionLoading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Ionicons
+                name="checkmark-done-outline"
+                size={width * 0.02}
+                color="#fff"
+                style={{ marginRight: 8 }}
+              />
+            )}
+            <Text style={styles.markAllButtonText}>
+              {isActionLoading ? 'Processing...' : 'Mark All Read'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Refresh Button */}
+          <TouchableOpacity
+            style={styles.refreshButton}
+            onPress={handleRefresh}
+            disabled={isLoading || isActionLoading || isFetchingRef.current}
+          >
+            <Ionicons
+              name="refresh"
+              size={width * 0.02}
+              color="#fff"
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.refreshButtonText}>Refresh</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
+  const renderFooter = () => {
+    if (!isFetchingMore) return null;
+    return (
+      <View style={styles.footerLoader}>
+        <ActivityIndicator size="small" color="#A98C27" />
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
-      <ScrollView
-        style={styles.contentArea}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        <View style={styles.notificationsHeaderSection}>
-          <Text style={styles.screenTitle}>Booking Reminders</Text>
-        </View>
-
-        <View style={styles.notificationsContainer}>
-          <FlatList
-            data={remindersData}
-            renderItem={renderReminderItem}
-            keyExtractor={item => item.id}
-            showsVerticalScrollIndicator={false}
-            ListEmptyComponent={() => (
-              <View style={styles.noDataContainer}>
-                {isLoading ? (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#A98C27" />
-                    <Text style={styles.loadingText}>
-                      Loading reminders...
-                    </Text>
-                  </View>
-                ) : error ? (
-                  <View style={styles.errorContainer}>
-                    <Ionicons
-                      name="alert-circle-outline"
-                      size={50}
-                      color="#FF5555"
-                    />
-                    <Text style={styles.errorText}>Error: {error}</Text>
-                    <TouchableOpacity
-                      style={styles.retryButton}
-                      onPress={handleRefresh}
-                    >
-                      <Text style={styles.retryButtonText}>Retry</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <Text style={styles.noDataText}>
-                    No upcoming reminders.
-                  </Text>
-                )}
-              </View>
-            )}
-          />
-        </View>
-      </ScrollView>
+      <View style={styles.contentArea}>
+        <FlatList
+          data={remindersData}
+          renderItem={renderReminderItem}
+          keyExtractor={item => item.id}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          ListHeaderComponent={renderHeader}
+          ListFooterComponent={renderFooter}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.3}
+          ListEmptyComponent={() => (
+            <View style={styles.noDataContainer}>
+              {isLoading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color="#A98C27" />
+                  <Text style={styles.loadingText}>Loading reminders...</Text>
+                </View>
+              ) : error ? (
+                <View style={styles.errorContainer}>
+                  <Ionicons
+                    name="alert-circle-outline"
+                    size={50}
+                    color="#FF5555"
+                  />
+                  <Text style={styles.errorText}>Error: {error}</Text>
+                  <TouchableOpacity
+                    style={styles.retryButton}
+                    onPress={handleRefresh}
+                  >
+                    <Text style={styles.retryButtonText}>Retry</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <Text style={styles.noDataText}>
+                  No reminders found for the current filter.
+                </Text>
+              )}
+            </View>
+          )}
+        />
+      </View>
     </View>
   );
 };
@@ -602,6 +779,65 @@ const styles = StyleSheet.create({
     color: '#A9A9A9',
     fontSize: width * 0.02,
     textAlign: 'center',
+  },
+  buttonsGroup: {
+    flexDirection: 'row',
+    gap: width * 0.015,
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  filterButton: {
+    backgroundColor: '#2A2D32',
+    paddingVertical: height * 0.012,
+    paddingHorizontal: width * 0.02,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#4A4A4A',
+  },
+  filterButtonActive: {
+    backgroundColor: '#A98C27',
+    borderColor: '#A98C27',
+  },
+  filterButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: width * 0.014,
+  },
+  filterButtonTextActive: {
+    color: '#fff',
+  },
+  markAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#4CAF50',
+    paddingVertical: height * 0.012,
+    paddingHorizontal: width * 0.02,
+    borderRadius: 8,
+  },
+  markAllButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: width * 0.014,
+  },
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2A2D32',
+    paddingVertical: height * 0.012,
+    paddingHorizontal: width * 0.02,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#4A4A4A',
+  },
+  refreshButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: width * 0.014,
+  },
+  footerLoader: {
+    paddingVertical: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 

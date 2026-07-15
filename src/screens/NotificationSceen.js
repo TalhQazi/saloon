@@ -70,8 +70,17 @@ const getAuthToken = async () => {
   console.log('🔐 [getAuthToken] Starting token retrieval...');
 
   try {
+    const activeRole = await AsyncStorage.getItem('activeRole');
     const adminAuth = await AsyncStorage.getItem('adminAuth');
     const managerAuth = await AsyncStorage.getItem('managerAuth');
+
+    if (activeRole === 'manager' && managerAuth) {
+      const managerData = JSON.parse(managerAuth);
+      if (managerData.token) {
+        console.log('✅ [getAuthToken] Found Manager JWT token (prioritized)');
+        return managerData.token;
+      }
+    }
 
     if (adminAuth) {
       const adminData = JSON.parse(adminAuth);

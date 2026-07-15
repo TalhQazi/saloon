@@ -83,6 +83,14 @@ export const getFaceAuthToken = async () => {
 // The primary function to get the authentication token.
 export const getAuthToken = async () => {
   try {
+    const activeRole = await AsyncStorage.getItem('activeRole');
+    if (activeRole === 'manager') {
+      const managerToken = await getManagerToken();
+      if (managerToken) {
+        return managerToken;
+      }
+    }
+
     // 1. First, try to get the admin token (most common for admin panel).
     const adminToken = await getAdminToken();
     if (adminToken) {
