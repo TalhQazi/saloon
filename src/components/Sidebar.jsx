@@ -137,11 +137,6 @@ const Sidebar = ({ activeTab, onSelect, navigation }) => {
             >
               {item.name}
             </Text>
-            {item.name === 'AdvanceBooking' && bookingCount > 0 && (
-              <View style={styles.badgeContainer}>
-                <Text style={styles.badgeText}>{bookingCount}</Text>
-              </View>
-            )}
             {item.name === 'Reminder' && unreadRemindersCount > 0 && (
               <View style={styles.badgeContainer}>
                 <Text style={styles.badgeText}>{unreadRemindersCount}</Text>
