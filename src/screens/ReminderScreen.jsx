@@ -196,12 +196,13 @@ const ReminderScreen = () => {
   const [filterType, setFilterType] = useState('all');
   const [remindersData, setRemindersData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [loadingActionId, setLoadingActionId] = useState(null);
   const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
+  const [totalPages, setTotalPages] = useState(1);
   const [error, setError] = useState(null);
+
+  const PAGE_SIZE = 10;
 
   /**
    * Fetches reminders from the API.
@@ -218,15 +219,8 @@ const ReminderScreen = () => {
       if (isFetchingRef.current) return;
       isFetchingRef.current = true;
 
-      if (isRefresh) {
-        setPage(1);
-        setHasMore(true);
-      } else if (pageNumber === 1) {
-        setIsLoading(true);
-      } else {
-        setIsFetchingMore(true);
-      }
-
+      // Always show loading spinner during transitions
+      setIsLoading(true);
       setError(null);
 
       try {
@@ -247,8 +241,7 @@ const ReminderScreen = () => {
         }
 
         // Build endpoint query parameters with pagination and filters
-        const limit = 20;
-        let queryParams = `?type=advance_booking_reminder&page=${pageNumber}&limit=${limit}`;
+        let queryParams = `?type=advance_booking_reminder&page=${pageNumber}&limit=${PAGE_SIZE}`;
         if (selectedFilter === 'unread') {
           queryParams += '&isRead=false';
         } else if (selectedFilter === 'read') {
@@ -278,17 +271,13 @@ const ReminderScreen = () => {
           };
         });
 
-        if (isRefresh || pageNumber === 1) {
-          setRemindersData(mappedData);
-        } else {
-          setRemindersData(prev => [...prev, ...mappedData]);
-        }
+        setRemindersData(mappedData);
 
         const pagination = data.data.pagination;
         if (pagination) {
-          setHasMore(pagination.hasNext);
+          setTotalPages(pagination.totalPages || 1);
         } else {
-          setHasMore(mappedData.length === limit);
+          setTotalPages(1);
         }
         
         setPage(pageNumber);
@@ -299,7 +288,6 @@ const ReminderScreen = () => {
         setError(err.message);
       } finally {
         setIsLoading(false);
-        setIsFetchingMore(false);
         setIsActionLoading(false);
         setLoadingActionId(null);
         isFetchingRef.current = false;
@@ -430,12 +418,6 @@ const ReminderScreen = () => {
     initialLoadFailedRef.current = false;
     fetchReminders(1, true, filterType);
   }, [fetchReminders, filterType]);
-
-  const handleLoadMore = () => {
-    if (!isLoading && !isFetchingMore && hasMore && !isFetchingRef.current) {
-      fetchReminders(page + 1, false, filterType);
-    }
-  };
 
   // ====================================================================
   // RENDER LOGIC
@@ -570,15 +552,6 @@ const ReminderScreen = () => {
     );
   };
 
-  const renderFooter = () => {
-    if (!isFetchingMore) return null;
-    return (
-      <View style={styles.footerLoader}>
-        <ActivityIndicator size="small" color="#A98C27" />
-      </View>
-    );
-  };
-
   return (
     <View style={styles.container}>
       <View style={styles.contentArea}>
@@ -589,9 +562,6 @@ const ReminderScreen = () => {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
           ListHeaderComponent={renderHeader}
-          ListFooterComponent={renderFooter}
-          onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.3}
           ListEmptyComponent={() => (
             <View style={styles.noDataContainer}>
               {isLoading ? (
@@ -622,6 +592,39 @@ const ReminderScreen = () => {
             </View>
           )}
         />
+
+        {/* Pagination Controls */}
+        {!isLoading && !error && remindersData.length > 0 && (
+          <View style={styles.paginationContainer}>
+            <TouchableOpacity
+              style={[styles.pageButton, page === 1 && styles.pageButtonDisabled]}
+              onPress={() => page > 1 && fetchReminders(page - 1, false, filterType)}
+              disabled={page === 1}
+            >
+              <Text style={styles.pageButtonText}>Prev</Text>
+            </TouchableOpacity>
+            <View style={styles.pageNumbersContainer}>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(n => (
+                <TouchableOpacity
+                  key={`pg-${n}`}
+                  style={[styles.pageNumber, n === page && styles.pageNumberActive]}
+                  onPress={() => fetchReminders(n, false, filterType)}
+                >
+                  <Text style={[styles.pageNumberText, n === page && styles.pageNumberTextActive]}>
+                    {n}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity
+              style={[styles.pageButton, page === totalPages && styles.pageButtonDisabled]}
+              onPress={() => page < totalPages && fetchReminders(page + 1, false, filterType)}
+              disabled={page === totalPages}
+            >
+              <Text style={styles.pageButtonText}>Next</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -839,6 +842,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  paginationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: height * 0.02,
+    gap: width * 0.01,
+  },
+  pageButton: {
+    backgroundColor: '#2A2D32',
+    paddingVertical: height * 0.012,
+    paddingHorizontal: width * 0.02,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#4A4A4A',
+  },
+  pageButtonDisabled: { opacity: 0.5 },
+  pageButtonText: { color: '#fff', fontWeight: '600', fontSize: width * 0.014 },
+  pageNumbersContainer: { flexDirection: 'row', alignItems: 'center', gap: width * 0.005 },
+  pageNumber: {
+    backgroundColor: '#2A2D32',
+    paddingVertical: height * 0.008,
+    paddingHorizontal: width * 0.012,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#4A4A4A',
+    marginHorizontal: width * 0.002,
+  },
+  pageNumberActive: { backgroundColor: '#A98C27', borderColor: '#A98C27' },
+  pageNumberText: { color: '#fff', fontSize: width * 0.014 },
+  pageNumberTextActive: { color: '#fff', fontWeight: '700' },
 });
 
 export default ReminderScreen;

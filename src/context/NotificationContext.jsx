@@ -24,6 +24,7 @@ const NotificationContext = createContext();
 export const NotificationProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadRemindersCount, setUnreadRemindersCount] = useState(0);
   const [upcomingReminders, setUpcomingReminders] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -221,6 +222,11 @@ export const NotificationProvider = ({ children }) => {
           response.data?.count ||
           0;
 
+        const remindersCount =
+          response.unreadRemindersCount ||
+          response.data?.unreadRemindersCount ||
+          0;
+
         if (typeof count === 'number') {
           setUnreadCount(count);
           console.log('[NotificationContext] Unread count updated:', count);
@@ -229,6 +235,11 @@ export const NotificationProvider = ({ children }) => {
             '[NotificationContext] Invalid unreadCount type:',
             typeof count,
           );
+        }
+
+        if (typeof remindersCount === 'number') {
+          setUnreadRemindersCount(remindersCount);
+          console.log('[NotificationContext] Unread reminders count updated:', remindersCount);
         }
       } else {
         console.warn(
@@ -373,6 +384,7 @@ export const NotificationProvider = ({ children }) => {
     // State
     notifications,
     unreadCount,
+    unreadRemindersCount,
     upcomingReminders,
     isLoading,
     isRefreshing,

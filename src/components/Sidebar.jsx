@@ -13,6 +13,7 @@ import { useNavigationState } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAuthToken } from '../utils/authUtils';
 import { getAdvanceBookingStats } from '../api/advanceBookingService';
+import { useNotifications } from '../context/NotificationContext';
 
 import AppLogo from '../assets/images/logo.png';
 
@@ -48,6 +49,7 @@ const Sidebar = ({ activeTab, onSelect, navigation }) => {
     currentActiveTab = 'Marketplace';
   }
 
+  const { unreadRemindersCount, fetchNotificationCount } = useNotifications();
   const [bookingCount, setBookingCount] = useState(0);
 
   const fetchBookingCount = useCallback(async () => {
@@ -60,10 +62,13 @@ const Sidebar = ({ activeTab, onSelect, navigation }) => {
           setBookingCount(count);
         }
       }
+      if (typeof fetchNotificationCount === 'function') {
+        fetchNotificationCount();
+      }
     } catch (error) {
       console.warn('Failed to fetch booking count for admin sidebar:', error);
     }
-  }, []);
+  }, [fetchNotificationCount]);
 
   useEffect(() => {
     fetchBookingCount();
@@ -132,9 +137,14 @@ const Sidebar = ({ activeTab, onSelect, navigation }) => {
             >
               {item.name}
             </Text>
-            {item.name === 'Reminder' && bookingCount > 0 && (
+            {item.name === 'AdvanceBooking' && bookingCount > 0 && (
               <View style={styles.badgeContainer}>
                 <Text style={styles.badgeText}>{bookingCount}</Text>
+              </View>
+            )}
+            {item.name === 'Reminder' && unreadRemindersCount > 0 && (
+              <View style={styles.badgeContainer}>
+                <Text style={styles.badgeText}>{unreadRemindersCount}</Text>
               </View>
             )}
           </TouchableOpacity>
